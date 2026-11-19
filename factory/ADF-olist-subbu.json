@@ -1,0 +1,15 @@
+{
+	"name": "ADF-olist-subbu",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "australiaeast",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "b13df6e8-0a88-4360-93e6-f40259ef41a6",
+		"tenantId": "99e34304-7466-46e7-8878-712a837c0d24"
+	}
+}

@@ -1,0 +1,529 @@
+{
+	"name": "pipeline1",
+	"properties": {
+		"activities": [
+			{
+				"name": "Lookup1",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "JsonSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "JsonReadSettings"
+						}
+					},
+					"dataset": {
+						"referenceName": "ds_adls_json",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach1",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup1",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup1').output.value[0].datasets",
+						"type": "Expression"
+					},
+					"batchCount": 3,
+					"activities": [
+						{
+							"name": "Switch1",
+							"type": "Switch",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"on": {
+									"value": "@item().source_type",
+									"type": "Expression"
+								},
+								"cases": [
+									{
+										"value": "sqlserver",
+										"activities": [
+											{
+												"name": "Copy data1",
+												"type": "Copy",
+												"dependsOn": [],
+												"policy": {
+													"timeout": "0.12:00:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "SqlServerSource",
+														"queryTimeout": "02:00:00",
+														"partitionOption": "None"
+													},
+													"sink": {
+														"type": "ParquetSink",
+														"storeSettings": {
+															"type": "AzureBlobFSWriteSettings"
+														},
+														"formatSettings": {
+															"type": "ParquetWriteSettings"
+														}
+													},
+													"enableStaging": false,
+													"translator": {
+														"type": "TabularTranslator",
+														"typeConversion": true,
+														"typeConversionSettings": {
+															"allowDataTruncation": true,
+															"treatBooleanAsNumber": false
+														}
+													}
+												},
+												"inputs": [
+													{
+														"referenceName": "ds_sqlserver_table",
+														"type": "DatasetReference",
+														"parameters": {
+															"p_schema": {
+																"value": "@item().source_schema",
+																"type": "Expression"
+															},
+															"p_tablename": {
+																"value": "@item().source_object",
+																"type": "Expression"
+															}
+														}
+													}
+												],
+												"outputs": [
+													{
+														"referenceName": "ds_adls_parquet",
+														"type": "DatasetReference",
+														"parameters": {
+															"p_folder": {
+																"value": "@item().target_folder",
+																"type": "Expression"
+															},
+															"p_file": {
+																"value": "@concat(item().target_folder, '.parquet')",
+																"type": "Expression"
+															}
+														}
+													}
+												]
+											},
+											{
+												"name": "Stored procedure1",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [
+													{
+														"activity": "Copy data1",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"timeout": "0.12:00:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "[dbo].[Insert_ETL_Audit]",
+													"storedProcedureParameters": {
+														"DatasetName": {
+															"value": {
+																"value": "@item().target_folder",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"ExecutionTime": {
+															"value": {
+																"value": "@utcNow()",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														},
+														"PipelineRunID": {
+															"value": {
+																"value": "@pipeline().RunId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"RowsCopied": {
+															"value": {
+																"value": "@activity('Copy data1').output.rowsCopied",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"RowsRead": {
+															"value": {
+																"value": "@activity('Copy data1').output.rowsRead",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"Status": {
+															"value": {
+																"value": "success",
+																"type": "Expression"
+															},
+															"type": "String"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "ls_sqlserver_onprem",
+													"type": "LinkedServiceReference"
+												}
+											}
+										]
+									},
+									{
+										"value": "snowflake",
+										"activities": [
+											{
+												"name": "Copy data2",
+												"type": "Copy",
+												"dependsOn": [],
+												"policy": {
+													"timeout": "0.12:00:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "SnowflakeV2Source",
+														"exportSettings": {
+															"type": "SnowflakeExportCopyCommand"
+														}
+													},
+													"sink": {
+														"type": "ParquetSink",
+														"storeSettings": {
+															"type": "AzureBlobFSWriteSettings"
+														},
+														"formatSettings": {
+															"type": "ParquetWriteSettings"
+														}
+													},
+													"enableStaging": true,
+													"stagingSettings": {
+														"linkedServiceName": {
+															"referenceName": "ls_blob_staging",
+															"type": "LinkedServiceReference"
+														},
+														"path": "snowflake-staging"
+													},
+													"translator": {
+														"type": "TabularTranslator",
+														"typeConversion": true,
+														"typeConversionSettings": {
+															"allowDataTruncation": true,
+															"treatBooleanAsNumber": false
+														}
+													}
+												},
+												"inputs": [
+													{
+														"referenceName": "ds_snowflake_table",
+														"type": "DatasetReference",
+														"parameters": {
+															"p_schema": {
+																"value": "@item().source_schema",
+																"type": "Expression"
+															},
+															"p_tablename": {
+																"value": "@item().source_object",
+																"type": "Expression"
+															}
+														}
+													}
+												],
+												"outputs": [
+													{
+														"referenceName": "ds_adls_parquet",
+														"type": "DatasetReference",
+														"parameters": {
+															"p_folder": {
+																"value": "@item().target_folder",
+																"type": "Expression"
+															},
+															"p_file": {
+																"value": "@concat(item().target_folder, '.parquet')",
+																"type": "Expression"
+															}
+														}
+													}
+												]
+											},
+											{
+												"name": "Stored procedure2",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [
+													{
+														"activity": "Copy data2",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"timeout": "0.12:00:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "[dbo].[Insert_ETL_Audit]",
+													"storedProcedureParameters": {
+														"DatasetName": {
+															"value": {
+																"value": "@item().target_folder",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"ExecutionTime": {
+															"value": {
+																"value": "@utcNow()",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														},
+														"PipelineRunID": {
+															"value": {
+																"value": "@pipeline().RunId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"RowsCopied": {
+															"value": {
+																"value": "@activity('Copy data2').output.rowsCopied",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"RowsRead": {
+															"value": {
+																"value": "@activity('Copy data2').output.rowsRead",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"Status": {
+															"value": {
+																"value": "success",
+																"type": "Expression"
+															},
+															"type": "String"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "ls_sqlserver_onprem",
+													"type": "LinkedServiceReference"
+												}
+											}
+										]
+									},
+									{
+										"value": "csv",
+										"activities": [
+											{
+												"name": "Stored procedure3",
+												"type": "SqlServerStoredProcedure",
+												"dependsOn": [
+													{
+														"activity": "Copy data3",
+														"dependencyConditions": [
+															"Succeeded"
+														]
+													}
+												],
+												"policy": {
+													"timeout": "0.12:00:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"storedProcedureName": "[dbo].[Insert_ETL_Audit]",
+													"storedProcedureParameters": {
+														"DatasetName": {
+															"value": {
+																"value": "SQLServer",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"ExecutionTime": {
+															"value": {
+																"value": "@utcNow()",
+																"type": "Expression"
+															},
+															"type": "DateTime"
+														},
+														"PipelineRunID": {
+															"value": {
+																"value": "@pipeline().RunId",
+																"type": "Expression"
+															},
+															"type": "String"
+														},
+														"RowsCopied": {
+															"value": {
+																"value": "@activity('Copy data3').output.rowsCopied",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"RowsRead": {
+															"value": {
+																"value": "@activity('Copy data3').output.rowsRead",
+																"type": "Expression"
+															},
+															"type": "Int64"
+														},
+														"Status": {
+															"value": {
+																"value": "success",
+																"type": "Expression"
+															},
+															"type": "String"
+														}
+													}
+												},
+												"linkedServiceName": {
+													"referenceName": "ls_sqlserver_onprem",
+													"type": "LinkedServiceReference"
+												}
+											},
+											{
+												"name": "Copy data3",
+												"type": "Copy",
+												"dependsOn": [],
+												"policy": {
+													"timeout": "0.12:00:00",
+													"retry": 0,
+													"retryIntervalInSeconds": 30,
+													"secureOutput": false,
+													"secureInput": false
+												},
+												"userProperties": [],
+												"typeProperties": {
+													"source": {
+														"type": "DelimitedTextSource",
+														"storeSettings": {
+															"type": "AzureBlobFSReadSettings",
+															"recursive": true,
+															"enablePartitionDiscovery": false
+														},
+														"formatSettings": {
+															"type": "DelimitedTextReadSettings"
+														}
+													},
+													"sink": {
+														"type": "ParquetSink",
+														"storeSettings": {
+															"type": "AzureBlobFSWriteSettings"
+														},
+														"formatSettings": {
+															"type": "ParquetWriteSettings"
+														}
+													},
+													"enableStaging": false,
+													"translator": {
+														"type": "TabularTranslator",
+														"typeConversion": true,
+														"typeConversionSettings": {
+															"allowDataTruncation": true,
+															"treatBooleanAsNumber": false
+														}
+													}
+												},
+												"inputs": [
+													{
+														"referenceName": "ds_adls_csv",
+														"type": "DatasetReference",
+														"parameters": {
+															"p_folder": {
+																"value": "@item().source_schema",
+																"type": "Expression"
+															},
+															"p_file": {
+																"value": "@item().source_object",
+																"type": "Expression"
+															}
+														}
+													}
+												],
+												"outputs": [
+													{
+														"referenceName": "ds_adls_parquet",
+														"type": "DatasetReference",
+														"parameters": {
+															"p_folder": {
+																"value": "@item().target_folder",
+																"type": "Expression"
+															},
+															"p_file": {
+																"value": "@concat(item().target_folder, '.parquet')",
+																"type": "Expression"
+															}
+														}
+													}
+												]
+											}
+										]
+									}
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-11-18T12:59:33Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

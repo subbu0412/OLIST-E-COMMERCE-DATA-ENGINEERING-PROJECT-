@@ -1,0 +1,31 @@
+{
+	"name": "ds_snowflake_table",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_snowflake",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"p_schema": {
+				"type": "string"
+			},
+			"p_tablename": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "SnowflakeV2Table",
+		"schema": [],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().p_schema",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().p_tablename",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
